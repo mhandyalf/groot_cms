@@ -43,7 +43,7 @@ func (ah *AuthHandler) Register(c *gin.Context) {
 
 func (ah *AuthHandler) Login(c *gin.Context) {
 	var loginRequest struct {
-		Email    string `json:"email"`
+		Email    string `json:"store_email"`
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
