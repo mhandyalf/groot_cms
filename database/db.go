@@ -1,32 +1,38 @@
 package database
 
 import (
-	"database/sql"
 	"groot_cms/models"
 
-	_ "github.com/go-sql-driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type DB struct {
-	*sql.DB
+	*gorm.DB
 }
 
-func InitDB() *DB {
-	db, err := sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/avenger")
+func InitDB() *gorm.DB {
+	dsn := "user=postgres password=123456 dbname=postgres host=localhost port=5432 sslmode=disable"
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}
 
-	return &DB{db}
+	err = db.AutoMigrate(&models.DataStore{})
+	if err != nil {
+		panic(err)
+	}
+
+	return db
 }
 
 func (db *DB) GetStoreByEmail(email string) (*models.DataStore, error) {
-	query := "SELECT store_id, store_email, password, store_name, store_type FROM DataStore WHERE store_email = ?"
 	store := &models.DataStore{}
 
-	err := db.QueryRow(query, email).Scan(&store.StoreID, &store.StoreEmail, &store.Password, &store.StoreName, &store.StoreType)
+	err := db.Where("store_email = ?", email).First(store).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return nil, err // Store not found
 		}
 		return nil, err
@@ -36,8 +42,7 @@ func (db *DB) GetStoreByEmail(email string) (*models.DataStore, error) {
 }
 
 func (db *DB) CreateStore(store *models.DataStore) error {
-	query := "INSERT INTO DataStore (store_email, password, store_name, store_type) VALUES (?, ?, ?, ?)"
-	_, err := db.Exec(query, store.StoreEmail, store.Password, store.StoreName, store.StoreType)
+	err := db.Create(store).Error
 	if err != nil {
 		return err
 	}

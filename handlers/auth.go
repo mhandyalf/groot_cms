@@ -1,20 +1,20 @@
 package handlers
 
 import (
-	"groot_cms/database"
 	"groot_cms/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthHandler struct {
-	db *database.DB
+	db *gorm.DB
 }
 
-func NewAuthHandler(db *database.DB) *AuthHandler {
+func NewAuthHandler(db *gorm.DB) *AuthHandler {
 	return &AuthHandler{db: db}
 }
 
@@ -33,7 +33,7 @@ func (ah *AuthHandler) Register(c *gin.Context) {
 
 	user.Password = string(hashedPassword)
 
-	if err := ah.db.CreateStore(&user); err != nil {
+	if err := ah.db.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -51,9 +51,13 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := ah.db.GetStoreByEmail(loginRequest.Email)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+	var user models.DataStore
+	if err := ah.db.Where("store_email = ?", loginRequest.Email).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -62,7 +66,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := generateJWTToken(user)
+	token, err := generateJWTToken(&user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -74,7 +78,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 func generateJWTToken(user *models.DataStore) (string, error) {
 	claims := jwt.MapClaims{
 		"email": user.StoreEmail,
-		"role":  user.StoreType,
+		"type":  user.StoreType,
 		// Add more claims as needed
 	}
 
