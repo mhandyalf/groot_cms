@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"groot_cms/models"
+	"groot_cms/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +23,8 @@ func NewAuthHandler(db *gorm.DB) *AuthHandler {
 func (ah *AuthHandler) Register(c *gin.Context) {
 	var user models.DataStore
 	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		contractErrorResponse(c, http.StatusInternalServerError, "Terjadi kesalahan internal server.", err)
+		utils.ErrorMessage(c, &utils.ErrBindingJSON)
 		return
 	}
 
@@ -38,7 +41,7 @@ func (ah *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusCreated)
+	utils.SuccessMessage(c, http.StatusOK, "Success register")
 }
 
 func (ah *AuthHandler) Login(c *gin.Context) {
@@ -47,14 +50,16 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		contractErrorResponse(c, http.StatusInternalServerError, "Terjadi kesalahan internal server.", err)
+		utils.ErrorMessage(c, &utils.ErrBindingJSON)
+		fmt.Printf("[PaymentControlle.GetData] error "+"when get data from db : %v\n", err)
 		return
 	}
 
 	var user models.DataStore
 	if err := ah.db.Where("store_email = ?", loginRequest.Email).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			utils.ErrorMessage(c, &utils.ErrorGetData)
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -62,7 +67,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		utils.ErrorMessage(c, &utils.ErrorGetData)
 		return
 	}
 
@@ -73,6 +78,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"token": token})
+	utils.SuccessWithData(c, http.StatusOK, user)
 }
 
 func generateJWTToken(user *models.DataStore) (string, error) {
@@ -90,4 +96,12 @@ func generateJWTToken(user *models.DataStore) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func contractErrorResponse(c *gin.Context, status int, message string, err error) {
+	c.JSON(status, gin.H{
+		"status":  status,
+		"message": message,
+		"error":   err.Error(),
+	})
 }

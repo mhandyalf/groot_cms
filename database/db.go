@@ -26,26 +26,3 @@ func InitDB() *gorm.DB {
 
 	return db
 }
-
-func (db *DB) GetStoreByEmail(email string) (*models.DataStore, error) {
-	store := &models.DataStore{}
-
-	err := db.Where("store_email = ?", email).First(store).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, err // Store not found
-		}
-		return nil, err
-	}
-
-	return store, nil
-}
-
-func (db *DB) CreateStore(store *models.DataStore) error {
-	err := db.Create(store).Error
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
